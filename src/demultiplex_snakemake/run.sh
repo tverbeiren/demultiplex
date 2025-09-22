@@ -10,6 +10,7 @@ CORES=8
 DRYRUN=false
 PROFILE=""
 SCHEDULER=""
+USE_CONTAINERS=true
 EXTRA_ARGS=""
 
 # Parse command line arguments
@@ -35,6 +36,10 @@ while [[ $# -gt 0 ]]; do
             SCHEDULER="$2"
             shift 2
             ;;
+        --no-containers)
+            USE_CONTAINERS=false
+            shift
+            ;;
         --help)
             echo "Usage: $0 [OPTIONS] [-- EXTRA_SNAKEMAKE_OPTIONS]"
             echo ""
@@ -44,6 +49,7 @@ while [[ $# -gt 0 ]]; do
             echo "  --dryrun           Perform a dry run"
             echo "  --profile NAME     Snakemake profile to use"
             echo "  --scheduler NAME   Scheduler to use (greedy, ilp)"
+            echo "  --no-containers    Disable container usage (not recommended)"
             echo "  --help             Show this help message"
             echo ""
             echo "Examples:"
@@ -82,6 +88,11 @@ fi
 
 # Add other useful options
 SNAKEMAKE_CMD="$SNAKEMAKE_CMD --printshellcmds"
+
+# Enable containers by default
+if [[ "$USE_CONTAINERS" == true ]]; then
+    SNAKEMAKE_CMD="$SNAKEMAKE_CMD --use-singularity"
+fi
 
 # Add any extra arguments
 if [[ -n "$EXTRA_ARGS" ]]; then

@@ -26,7 +26,7 @@ The workflow performs the following steps:
 
 #### Option 1: Using the run script (Recommended)
 ```bash
-# Run with default configuration
+# Run with default configuration (uses containers automatically)
 ./run.sh --config config/config.yaml --cores 8
 
 # Dry run to check workflow
@@ -34,21 +34,26 @@ The workflow performs the following steps:
 
 # Test with reduced resources
 ./run.sh --config config/test_config.yaml --cores 4
+
+# Disable containers (not recommended - tools may not be available)
+./run.sh --config config/config.yaml --cores 8 --no-containers
 ```
 
 #### Option 2: Running Snakemake directly
 ```bash
-# Run with default configuration (note: use --configfile, not --config)
-snakemake --configfile config/config.yaml --cores 8
+# Run with containers (recommended)
+snakemake --configfile config/config.yaml --cores 8 --use-singularity
 
 # Dry run to check workflow  
-snakemake --configfile config/config.yaml --cores 8 --dryrun
+snakemake --configfile config/config.yaml --cores 8 --use-singularity --dryrun
 
-# Test with reduced resources
-snakemake --configfile config/test_config.yaml --cores 4
+# Without containers (not recommended)
+snakemake --configfile config/config.yaml --cores 8
 ```
 
 > **⚠️ Important**: When running Snakemake directly, use `--configfile` to specify the config file, **not** `--config`. The `--config` option is for setting individual config values as key=value pairs.
+
+> **🐳 Container Support**: The workflow uses Docker/Singularity containers for reproducibility. Use `--use-singularity` flag or the run script which enables containers by default.
 
 ### Configuration
 
@@ -134,8 +139,11 @@ The workflow uses the following containers:
 - `elementbiosciences/bases2fastq:1.3.1` - For Element Biosciences demultiplexing  
 - `biocontainers/fastqc:v0.12.1_cv1` - For FASTQ quality control
 - `multiqc/multiqc:1.23` - For report generation
-- `illumina/interop:1.3.1` - For InterOp summary generation
+- `quay.io/biocontainers/illumina-interop:1.3.1--h9f5acd7_1` - For InterOp summary generation
 - `debian:stable-slim` - For file extraction
+- `python:3.11-slim` - For Python scripts and default operations
+
+**Container Support Required**: This workflow requires Docker or Singularity to be installed and available. The containers are automatically pulled when needed.
 - `ubuntu:22.04` - Default container for scripts
 
 ## Resource Configuration
@@ -171,9 +179,16 @@ snakemake --configfile config/config.yaml --profile slurm --jobs 100
 ```
 
 ### Container Execution
-The workflow automatically uses containers when available. To disable:
+The workflow requires containers for reproducible execution. Enable container support:
 ```bash
-snakemake --configfile config/config.yaml --cores 8 --use-singularity false
+# Using Docker (recommended)
+snakemake --configfile config/config.yaml --cores 8 --use-singularity
+
+# Using Conda environments (alternative)
+snakemake --configfile config/config.yaml --cores 8 --use-conda
+
+# Disable containers (not recommended - tools may not be available)
+snakemake --configfile config/config.yaml --cores 8
 ```
 
 ### Scheduler Options
@@ -205,8 +220,8 @@ The workflow generates the following outputs in the `publish_dir`:
 3. **Double slash warnings**: If you see warnings about double slashes in file paths, remove trailing slashes from directory paths in your config (e.g., use `"output"` instead of `"output/"`).
 4. **Ambiguous rules error**: If you get "AmbiguousRuleException" about `bcl_convert` and `bases2fastq`, this should be resolved by the `ruleorder` directive. The workflow automatically uses the appropriate demultiplexer based on auto-detection.
 5. **ILP solver warnings**: If you see "Failed to solve scheduling problem with ILP solver, falling back to greedy scheduler", this is non-critical. Snakemake will use the greedy scheduler instead. To fix: install CBC solver with `conda install coincbc` or ignore the warning as it doesn't affect workflow execution.
-6. **Missing input files**: Ensure input path exists and is accessible
-7. **Container not found**: Check container availability or disable container usage
+6. **Container/tool not found**: The workflow requires Docker/Singularity containers for reproducibility. Ensure containers are enabled with `--use-singularity` flag or use the run script which enables them by default.
+7. **Missing input files**: Ensure input path exists and is accessible
 8. **Resource limits**: Adjust resource settings in configuration
 9. **Permission errors**: Ensure write permissions for output directories
 
