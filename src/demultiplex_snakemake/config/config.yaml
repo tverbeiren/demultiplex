@@ -2,10 +2,10 @@
 
 # Input/Output
 sample_id: "run"
-input: ""  # Path to input directory or tarball (required)
+input: ""  # Path to input directory or tarball (required) - MUST BE SET BEFORE RUNNING
 output_dir: ""  # Will default to {sample_id}/fastq if not specified
 qc_dir: ""  # Will default to {sample_id}/qc if not specified
-publish_dir: "output/"
+publish_dir: "output"  # Directory for final outputs (no trailing slash needed)
 
 # Demultiplexer settings
 demultiplexer: ""  # Optional: "bclconvert" or "bases2fastq" - will autodetect if not specified

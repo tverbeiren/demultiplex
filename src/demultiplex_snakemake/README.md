@@ -52,22 +52,27 @@ snakemake --configfile config/test_config.yaml --cores 4
 
 ### Configuration
 
-Edit `config/config.yaml` to specify:
+**Before running the workflow**, you must edit `config/config.yaml` to specify your input data:
 
-- `input`: Path to input directory or tarball
-- `sample_id`: Unique identifier for the run
-- `publish_dir`: Output directory for final results
-- `demultiplexer`: Optional, will auto-detect if not specified
-- `run_information`: Optional, will auto-detect if not specified
+#### Required Settings:
+- `input`: **REQUIRED** - Path to input directory containing sequencing data or tarball
+- `sample_id`: Unique identifier for the run (default: "run")
 
-Example configuration:
+#### Optional Settings:
+- `publish_dir`: Output directory for final results (default: "output")
+- `demultiplexer`: Demultiplexer to use - will auto-detect if not specified
+- `run_information`: Sample sheet path - will auto-detect if not specified
+
+#### Example configuration:
 ```yaml
 sample_id: "my_run"
-input: "/path/to/sequencing/data"
-publish_dir: "results/"
-demultiplexer: "bclconvert"  # or "bases2fastq", or "" for auto-detect
+input: "/path/to/sequencing/data"           # ⚠️  MUST BE SET!
+publish_dir: "results"                      # No trailing slash needed
+demultiplexer: "bclconvert"                 # or "bases2fastq", or "" for auto-detect
 skip_copycomplete_check: false
 ```
+
+> **⚠️ Important**: The workflow will fail if no `input` path is specified. Make sure to set this before running!
 
 ## Directory Structure
 
@@ -168,10 +173,12 @@ The workflow generates the following outputs in the `publish_dir`:
 ### Common Issues
 
 1. **Wrong config option**: If you get "Invalid config definition: Config entries have to be defined as name=value pairs", you're using `--config` instead of `--configfile`. Use `--configfile config/config.yaml` to specify the config file.
-2. **Missing input files**: Ensure input path exists and is accessible
-3. **Container not found**: Check container availability or disable container usage
-4. **Resource limits**: Adjust resource settings in configuration
-5. **Permission errors**: Ensure write permissions for output directories
+2. **Missing input path**: If you get "No input path specified" or "Missing input files", you need to set the `input` field in your config file to point to your sequencing data.
+3. **Double slash warnings**: If you see warnings about double slashes in file paths, remove trailing slashes from directory paths in your config (e.g., use `"output"` instead of `"output/"`).
+4. **Missing input files**: Ensure input path exists and is accessible
+5. **Container not found**: Check container availability or disable container usage
+6. **Resource limits**: Adjust resource settings in configuration
+7. **Permission errors**: Ensure write permissions for output directories
 
 ### Debug Mode
 ```bash

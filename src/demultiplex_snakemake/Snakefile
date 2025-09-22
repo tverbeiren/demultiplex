@@ -24,12 +24,19 @@ SAMPLE_ID = config.get("sample_id", "run")
 # Input validation
 def get_input_path():
     """Get and validate input path"""
+    if not config["input"]:
+        raise ValueError(
+            "No input path specified. Please set 'input' in your config file to point to "
+            "a directory containing sequencing data or a tarball (.tar.gz, .tar, .tgz).\n"
+            "Example: input: '/path/to/your/sequencing/data'"
+        )
+    
     input_path = Path(config["input"])
-    # Skip validation during dry run or if input is empty (for testing)
-    if config["input"] and not input_path.exists():
+    # Skip validation during dry run
+    if not input_path.exists():
         # Only raise error if not in dry run mode (try to detect from command line)
         import sys
-        if "--dryrun" not in sys.argv and "-n" not in sys.argv:
+        if "--dryrun" not in sys.argv and "-n" not in sys.argv and "--dry-run" not in sys.argv:
             raise FileNotFoundError(f"Input path {input_path} does not exist")
     return input_path
 
@@ -54,7 +61,7 @@ needs_untar = is_tarball(input_path)
 # Target rule
 rule all:
     input:
-        published_flag = f"{config.get('publish_dir', 'output/')}/{SAMPLE_ID}_published.flag"
+        published_flag = Path(config.get('publish_dir', 'output')) / f"{SAMPLE_ID}_published.flag"
 
 # Include rules
 include: "rules/preprocessing.smk"

@@ -45,7 +45,7 @@ rule publish_outputs:
     input:
         flag = f"{SAMPLE_ID}/outputs_organized.flag"
     output:
-        published_flag = f"{config['publish_dir']}/{SAMPLE_ID}_published.flag"
+        published_flag = Path(config['publish_dir']) / f"{SAMPLE_ID}_published.flag"
     params:
         publish_dir = config["publish_dir"],
         sample_id = SAMPLE_ID
