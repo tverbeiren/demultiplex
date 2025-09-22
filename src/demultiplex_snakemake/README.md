@@ -176,6 +176,16 @@ The workflow automatically uses containers when available. To disable:
 snakemake --configfile config/config.yaml --cores 8 --use-singularity false
 ```
 
+### Scheduler Options
+If you encounter ILP solver issues, you can force the greedy scheduler:
+```bash
+# Force greedy scheduler (avoids ILP solver issues)
+snakemake --configfile config/config.yaml --cores 8 --scheduler greedy
+
+# Or using the run script
+./run.sh --config config/config.yaml --cores 8 --scheduler greedy
+```
+
 ## Outputs
 
 The workflow generates the following outputs in the `publish_dir`:
@@ -194,10 +204,11 @@ The workflow generates the following outputs in the `publish_dir`:
 2. **Missing input path**: If you get "No input path specified" or "Missing input files", you need to set the `input` field in your config file to point to your sequencing data.
 3. **Double slash warnings**: If you see warnings about double slashes in file paths, remove trailing slashes from directory paths in your config (e.g., use `"output"` instead of `"output/"`).
 4. **Ambiguous rules error**: If you get "AmbiguousRuleException" about `bcl_convert` and `bases2fastq`, this should be resolved by the `ruleorder` directive. The workflow automatically uses the appropriate demultiplexer based on auto-detection.
-5. **Missing input files**: Ensure input path exists and is accessible
-6. **Container not found**: Check container availability or disable container usage
-7. **Resource limits**: Adjust resource settings in configuration
-8. **Permission errors**: Ensure write permissions for output directories
+5. **ILP solver warnings**: If you see "Failed to solve scheduling problem with ILP solver, falling back to greedy scheduler", this is non-critical. Snakemake will use the greedy scheduler instead. To fix: install CBC solver with `conda install coincbc` or ignore the warning as it doesn't affect workflow execution.
+6. **Missing input files**: Ensure input path exists and is accessible
+7. **Container not found**: Check container availability or disable container usage
+8. **Resource limits**: Adjust resource settings in configuration
+9. **Permission errors**: Ensure write permissions for output directories
 
 ### Debug Mode
 ```bash
