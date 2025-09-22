@@ -1,0 +1,50 @@
+# Test configuration for demultiplex workflow
+
+# Input/Output
+sample_id: "test_run"
+input: "/placeholder/input/path"  # This should be set to actual test data
+output_dir: ""  # Will default to test_run/fastq
+qc_dir: ""  # Will default to test_run/qc
+publish_dir: "test_output"
+
+# Demultiplexer settings  
+demultiplexer: ""  # Auto-detect
+run_information: ""  # Auto-detect
+skip_copycomplete_check: true  # For testing
+
+# Resource settings (reduced for testing)
+resources:
+  verylowcpu: 1
+  lowcpu: 2
+  midcpu: 4
+  highcpu: 8
+  
+  verylowmem: "2GB"
+  lowmem: "4GB"
+  midmem: "8GB"
+  highmem: "16GB"
+
+# Container settings
+containers:
+  bcl_convert: "nfcore/bclconvert:4.2.7"
+  bases2fastq: "elementbiosciences/bases2fastq:1.3.1"
+  fastqc: "biocontainers/fastqc:v0.12.1_cv1"
+  multiqc: "multiqc/multiqc:1.23"
+  interop_summary: "illumina/interop:1.3.1"
+  untar: "debian:stable-slim"
+  default: "ubuntu:22.04"
+
+# Tool-specific settings
+bcl_convert:
+  legacy_fastq: true
+  group_fastq: true
+  no_projects: true
+
+bases2fastq:
+  legacy_fastq: true
+  group_fastq: true
+  no_projects: true
+  skip_multi_qc: true
+
+multiqc:
+  cl_config: 'sp: {fastqc/data: {fn: "*_fastqc_data.txt"}}'

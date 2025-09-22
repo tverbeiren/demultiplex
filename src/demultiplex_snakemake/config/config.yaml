@@ -1,0 +1,50 @@
+# Snakemake configuration for demultiplex workflow
+
+# Input/Output
+sample_id: "run"
+input: ""  # Path to input directory or tarball (required) - MUST BE SET BEFORE RUNNING
+output_dir: ""  # Will default to {sample_id}/fastq if not specified
+qc_dir: ""  # Will default to {sample_id}/qc if not specified
+publish_dir: "output"  # Directory for final outputs (no trailing slash needed)
+
+# Demultiplexer settings
+demultiplexer: ""  # Optional: "bclconvert" or "bases2fastq" - will autodetect if not specified
+run_information: ""  # Optional: path to SampleSheet.csv or RunManifest.csv - will autodetect if not specified
+skip_copycomplete_check: false
+
+# Resource settings (CPU cores and memory)
+resources:
+  verylowcpu: 2
+  lowcpu: 8
+  midcpu: 16
+  highcpu: 32
+  
+  verylowmem: "4GB"
+  lowmem: "8GB"
+  midmem: "16GB"
+  highmem: "64GB"
+
+# Container settings
+containers:
+  bcl_convert: "nfcore/bclconvert:4.2.7"
+  bases2fastq: "elementbiosciences/bases2fastq:1.3.1"
+  fastqc: "biocontainers/fastqc:v0.12.1_cv1"
+  multiqc: "multiqc/multiqc:1.23"
+  interop_summary: "quay.io/biocontainers/illumina-interop:1.3.1--h9f5acd7_1"
+  untar: "debian:stable-slim"
+  default: "python:3.11-slim"
+
+# Tool-specific settings
+bcl_convert:
+  legacy_fastq: true
+  group_fastq: true
+  no_projects: true
+
+bases2fastq:
+  legacy_fastq: true
+  group_fastq: true
+  no_projects: true
+  skip_multi_qc: true
+
+multiqc:
+  cl_config: 'sp: {fastqc/data: {fn: "*_fastqc_data.txt"}}'
