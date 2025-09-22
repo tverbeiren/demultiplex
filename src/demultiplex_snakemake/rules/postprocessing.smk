@@ -9,8 +9,7 @@ rule organize_outputs:
         qc_report = f"{SAMPLE_ID}/qc/multiqc_report.html",
         qc_dir = f"{SAMPLE_ID}/qc/combined",
         run_info = f"{SAMPLE_ID}/run_information.csv",
-        logs_bcl = f"{SAMPLE_ID}/demultiplexer_logs/bcl_convert",
-        logs_bases2fastq = f"{SAMPLE_ID}/demultiplexer_logs/bases2fastq",
+        logs_dir = f"{SAMPLE_ID}/demultiplexer_logs",
         detection_flag = f"{SAMPLE_ID}/detection_complete.flag"
     output:
         flag = f"{SAMPLE_ID}/outputs_organized.flag"
@@ -22,14 +21,6 @@ rule organize_outputs:
                     demultiplexer = line.split('=')[1].strip()
                     break
         
-        # Determine which logs directory to use
-        if demultiplexer == "bclconvert":
-            logs_dir = input.logs_bcl
-        elif demultiplexer == "bases2fastq":
-            logs_dir = input.logs_bases2fastq
-        else:
-            logs_dir = None
-        
         # Create flag file with output information
         with open(output.flag, 'w') as f:
             f.write(f"fastq_dir={input.fastq_dir}\n")
@@ -37,8 +28,7 @@ rule organize_outputs:
             f.write(f"qc_dir={input.qc_dir}\n")
             f.write(f"run_info={input.run_info}\n")
             f.write(f"demultiplexer={demultiplexer}\n")
-            if logs_dir:
-                f.write(f"logs_dir={logs_dir}\n")
+            f.write(f"logs_dir={input.logs_dir}\n")
 
 rule publish_outputs:
     """Publish outputs to final directory structure"""

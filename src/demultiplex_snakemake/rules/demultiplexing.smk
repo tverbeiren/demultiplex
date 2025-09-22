@@ -1,5 +1,6 @@
 """
 Demultiplexing rules for bcl_convert and bases2fastq
+Uses ruleorder and conditional outputs to handle ambiguous rules
 """
 
 def get_demultiplexer_input_dir():
@@ -8,6 +9,9 @@ def get_demultiplexer_input_dir():
         return f"{SAMPLE_ID}/unpacked_input"
     else:
         return config["input"]
+
+# Use ruleorder to resolve ambiguity - bcl_convert takes priority
+ruleorder: bcl_convert > bases2fastq
 
 rule interop_summary_to_csv:
     """Generate InterOp summaries for Illumina data"""
@@ -49,7 +53,7 @@ rule bcl_convert:
         detection_flag = f"{SAMPLE_ID}/detection_complete.flag"
     output:
         output_dir = directory(f"{SAMPLE_ID}/fastq"),
-        reports_dir = directory(f"{SAMPLE_ID}/demultiplexer_logs/bcl_convert")
+        reports_dir = directory(f"{SAMPLE_ID}/demultiplexer_logs")
     container:
         config["containers"]["bcl_convert"]
     resources:
@@ -63,6 +67,8 @@ rule bcl_convert:
             echo "Skipping bcl_convert - using different demultiplexer: $DEMULTIPLEXER"
             mkdir -p {output.output_dir}
             mkdir -p {output.reports_dir}
+            # Create a marker file to indicate this was skipped
+            touch {output.reports_dir}/SKIPPED_BCL_CONVERT
             exit 0
         fi
         
@@ -87,8 +93,8 @@ rule bases2fastq:
         detection_flag = f"{SAMPLE_ID}/detection_complete.flag"
     output:
         output_dir = directory(f"{SAMPLE_ID}/fastq"),
-        logs_dir = directory(f"{SAMPLE_ID}/demultiplexer_logs/bases2fastq"),
-        report = f"{SAMPLE_ID}/demultiplexer_logs/bases2fastq/report.html"
+        logs_dir = directory(f"{SAMPLE_ID}/demultiplexer_logs"),
+        report = f"{SAMPLE_ID}/demultiplexer_logs/report.html"
     container:
         config["containers"]["bases2fastq"]
     resources:
@@ -102,7 +108,9 @@ rule bases2fastq:
             echo "Skipping bases2fastq - using different demultiplexer: $DEMULTIPLEXER"
             mkdir -p {output.output_dir}
             mkdir -p {output.logs_dir}
+            # Create marker files to indicate this was skipped
             touch {output.report}
+            touch {output.logs_dir}/SKIPPED_BASES2FASTQ
             exit 0
         fi
         

@@ -109,6 +109,24 @@ interop_summary_to_csv → bcl_convert/bases2fastq → gather_fastqs_and_validat
 run_fastqc_all → combine_samples → multiqc → organize_outputs → publish_outputs
 ```
 
+## Conditional Demultiplexing
+
+The workflow automatically handles two different demultiplexing tools:
+
+- **Illumina data**: Uses `bcl_convert` with `SampleSheet.csv`
+- **Element Biosciences data**: Uses `bases2fastq` with `RunManifest.csv`
+
+### How It Works:
+1. **Auto-detection**: The `detect_demultiplexer` rule examines the input directory for `SampleSheet.csv` or `RunManifest.csv`
+2. **Conditional execution**: Both `bcl_convert` and `bases2fastq` rules are defined, but only the appropriate one runs based on detection
+3. **Rule resolution**: The `ruleorder: bcl_convert > bases2fastq` directive resolves any ambiguity in Snakemake's DAG building
+4. **Runtime checking**: Each rule checks the detected demultiplexer type and skips execution if it's not the right tool
+
+This approach ensures that:
+- ✅ Only the correct demultiplexer runs for your data
+- ✅ No manual specification required (though you can override with `demultiplexer` config)
+- ✅ The workflow handles both data types seamlessly
+
 ## Container Requirements
 
 The workflow uses the following containers:
@@ -175,10 +193,11 @@ The workflow generates the following outputs in the `publish_dir`:
 1. **Wrong config option**: If you get "Invalid config definition: Config entries have to be defined as name=value pairs", you're using `--config` instead of `--configfile`. Use `--configfile config/config.yaml` to specify the config file.
 2. **Missing input path**: If you get "No input path specified" or "Missing input files", you need to set the `input` field in your config file to point to your sequencing data.
 3. **Double slash warnings**: If you see warnings about double slashes in file paths, remove trailing slashes from directory paths in your config (e.g., use `"output"` instead of `"output/"`).
-4. **Missing input files**: Ensure input path exists and is accessible
-5. **Container not found**: Check container availability or disable container usage
-6. **Resource limits**: Adjust resource settings in configuration
-7. **Permission errors**: Ensure write permissions for output directories
+4. **Ambiguous rules error**: If you get "AmbiguousRuleException" about `bcl_convert` and `bases2fastq`, this should be resolved by the `ruleorder` directive. The workflow automatically uses the appropriate demultiplexer based on auto-detection.
+5. **Missing input files**: Ensure input path exists and is accessible
+6. **Container not found**: Check container availability or disable container usage
+7. **Resource limits**: Adjust resource settings in configuration
+8. **Permission errors**: Ensure write permissions for output directories
 
 ### Debug Mode
 ```bash
