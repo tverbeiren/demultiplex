@@ -1,0 +1,91 @@
+name: demultiplex_snakemake
+description: Snakemake version of the demultiplexing workflow
+argument_groups:
+  - name: Input arguments
+    arguments:
+      - name: --id
+        description: Unique identifier for the run
+        type: string
+        default: "run"
+      - name: --input
+        description: Directory containing raw sequencing data or tarball
+        type: file
+        required: true
+      - name: --run_information
+        description: |
+          CSV file containing sample information, which will be used as 
+          input for the demultiplexer. Canonically called 'SampleSheet.csv' (Illumina)
+          or 'RunManifest.csv' (Element Biosciences). If not specified,
+          will try to autodetect the sample sheet in the input directory.
+        type: file
+        required: false
+      - name: "--demultiplexer"
+        type: string
+        required: false
+        choices: ["bases2fastq", "bclconvert"]
+        description: |
+          Demultiplexer to use, choice depends on the provider
+          of the instrument that was used to generate the data.
+          When not specified, will try to autodetect based on files in input directory.
+  - name: Output arguments
+    arguments:
+      - name: --publish_dir
+        description: Directory to write final outputs to
+        type: file
+        direction: output
+        required: false
+        default: "output/"
+  - name: "Other arguments"
+    arguments:
+      - name: --skip_copycomplete_check
+        type: boolean_true
+        description: |
+          Disable the check for the presence of a "CopyComplete.txt" file in input
+          directory in case of Illumina data.
+      - name: --cores
+        type: integer
+        description: Number of cores to use for parallel execution
+        default: 8
+      - name: --profile
+        type: string
+        description: Snakemake profile to use (e.g., slurm, docker)
+        required: false
+
+resources:
+  - type: file
+    path: Snakefile
+    dest: Snakefile
+  - type: file
+    path: config/config.yaml
+    dest: config/config.yaml
+  - type: file
+    path: config/test_config.yaml
+    dest: config/test_config.yaml
+  - type: file
+    path: rules/
+    dest: rules/
+  - type: file
+    path: scripts/
+    dest: scripts/
+  - type: file
+    path: run.sh
+    dest: run.sh
+  - type: file
+    path: README.md
+    dest: README.md
+
+test_resources:
+  - type: bash_script
+    path: test.sh
+
+engines:
+  - type: docker
+    image: snakemake/snakemake:v8.25.5
+    setup:
+      - type: python
+        packages:
+          - pyyaml
+          - pathlib
+
+runners:
+  - type: executable

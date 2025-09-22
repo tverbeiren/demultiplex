@@ -1,0 +1,63 @@
+"""
+Snakemake workflow for demultiplexing raw sequencing data
+
+This workflow is a Snakemake translation of the original Nextflow/Viash workflow.
+It performs the following steps:
+1. Optional untar of input data
+2. Detection of demultiplexer type (bclconvert or bases2fastq)
+3. Demultiplexing using the appropriate tool
+4. FASTQ validation and gathering
+5. Quality control with FastQC
+6. Sample combination
+7. MultiQC reporting
+"""
+
+import os
+from pathlib import Path
+
+# Configuration
+configfile: "config/config.yaml"
+
+# Default wildcards
+SAMPLE_ID = config.get("sample_id", "run")
+
+# Input validation
+def get_input_path():
+    """Get and validate input path"""
+    input_path = Path(config["input"])
+    # Skip validation during dry run or if input is empty (for testing)
+    if config["input"] and not input_path.exists():
+        # Only raise error if not in dry run mode (try to detect from command line)
+        import sys
+        if "--dryrun" not in sys.argv and "-n" not in sys.argv:
+            raise FileNotFoundError(f"Input path {input_path} does not exist")
+    return input_path
+
+# Helper functions
+def is_tarball(path):
+    """Check if input is a tarball"""
+    path_str = str(path).lower()
+    return path_str.endswith(('.tar.gz', '.tar', '.tgz'))
+
+def get_output_dir(sample_id):
+    """Get output directory for sample"""
+    return Path(config.get("output_dir", f"{sample_id}/fastq"))
+
+def get_qc_dir(sample_id):
+    """Get QC output directory for sample"""
+    return Path(config.get("qc_dir", f"{sample_id}/qc"))
+
+# Input functions
+input_path = get_input_path()
+needs_untar = is_tarball(input_path)
+
+# Target rule
+rule all:
+    input:
+        published_flag = f"{config.get('publish_dir', 'output/')}/{SAMPLE_ID}_published.flag"
+
+# Include rules
+include: "rules/preprocessing.smk"
+include: "rules/demultiplexing.smk" 
+include: "rules/quality_control.smk"
+include: "rules/postprocessing.smk"
