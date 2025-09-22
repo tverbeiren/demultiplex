@@ -34,7 +34,7 @@ chmod +x viash
 # Method 3: Alternative Docker image (if viashio/viash not available)
 cat > viash << 'EOF'
 #!/bin/bash
-docker run --rm -v "$(pwd):/work" -w /work dataintuitive/viash:latest "$@"
+docker run --rm -v "$(pwd):/work" -w /work dataintuitive/viash:latest viash "$@"
 EOF
 chmod +x viash
 
@@ -77,6 +77,19 @@ viash ns build --setup cb -q demultiplex
 # Verify build completed successfully
 ls target/nextflow/  # Should show: demultiplex/ and runner/ directories
 ```
+
+### Expected Build Results
+```bash
+# After successful build, you should see:
+target/nextflow/
+├── runner/main.nf              # Built runner workflow
+├── demultiplex/main.nf         # Built demultiplex workflow (needs biobox deps)
+├── dataflow/*/main.nf          # Data processing components
+├── io/*/main.nf                # I/O utility components
+└── detect_demultiplexer/main.nf # Demultiplexer detection
+```
+
+**Note**: Some builds may fail due to network restrictions or missing dependencies. This is normal - focus on components that build successfully.
 
 ### Test Data Setup
 ```bash
@@ -221,6 +234,8 @@ After making changes, ALWAYS test these complete user scenarios:
 - Nextflow direct download: ~30 seconds
 - Docker image pulls (dataintuitive/viash): ~2-3 minutes
 - System package updates: 2-5 minutes
+- Viash build from source: ~50 seconds (after SBT setup)
+- SBT download and setup: ~2-3 minutes
 
 ## Project Structure
 
@@ -296,6 +311,12 @@ After making changes, ALWAYS test these complete user scenarios:
 - **Network restrictions**: Some environments block access to get.nextflow.io and get.viash.io - use direct GitHub releases instead
 - **JAR download fails**: GitHub releases may not have .jar files - try Docker method or source build
 - **Docker image not found**: viashio/viash may not exist - try dataintuitive/viash:latest as alternative
+- **SBT not available**: Download directly from GitHub releases:
+  ```bash
+  curl -L "https://github.com/sbt/sbt/releases/download/v1.10.1/sbt-1.10.1.tgz" -o sbt.tgz
+  tar -xzf sbt.tgz
+  export PATH="$(pwd)/sbt/bin:$PATH"
+  ```
 
 ### Build Issues
 - **"viash command not found"**: Ensure Viash is installed and in PATH
@@ -304,6 +325,8 @@ After making changes, ALWAYS test these complete user scenarios:
 - **"Cannot resolve dependencies"**: Ensure internet access to viash-hub.com and biobox repositories
 - **Docker image pull failures**: Check Docker Hub access and try `docker pull dataintuitive/viash:latest` manually
 - **SBT not available**: Some systems don't have SBT in default repositories - use Docker method instead
+- **"Could not checkout remote repository"**: biobox dependencies from viash-hub may be blocked - this is expected in restricted environments
+- **Certificate errors in Docker builds**: Network restrictions may block container downloads - use `--disable-setup` if needed
 
 ### Test Issues  
 - **Tests fail with "resources not found"**: Ensure internet connectivity for test data download from gs:// URLs
@@ -354,6 +377,18 @@ If you cannot get `viash ns build` to work due to installation or network issues
 3. **Validate syntax only**: Use `nextflow config -check` on individual workflows
 4. **Docker-based testing**: Use `docker run` commands to test individual biobox components
 5. **Documentation updates**: Focus on updating config files, documentation, and non-executable resources
+6. **Partial builds work**: Even if some components fail, others may build successfully and can be tested
+
+**Successful Components in Restricted Environments:**
+- `runner` (simplified workflow) - builds successfully
+- `dataflow/combine_samples` - builds successfully  
+- `dataflow/gather_fastqs_and_validate` - builds successfully
+- `detect_demultiplexer` - builds successfully
+- `io/*` components - most build successfully
+
+**Components That May Fail:**
+- `demultiplex` - requires biobox dependencies from viash-hub
+- Docker container builds - may fail due to certificate/network issues
 
 **Note**: Full integration testing requires a working Viash installation and build process.
 
