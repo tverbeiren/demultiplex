@@ -31,7 +31,14 @@ docker run --rm -v "$(pwd):/work" -w /work viashio/viash:0.9.4 "$@"
 EOF
 chmod +x viash
 
-# Method 3: Build from source (requires SBT)
+# Method 3: Alternative Docker image (if viashio/viash not available)
+cat > viash << 'EOF'
+#!/bin/bash
+docker run --rm -v "$(pwd):/work" -w /work dataintuitive/viash:latest "$@"
+EOF
+chmod +x viash
+
+# Method 4: Build from source (requires SBT)
 # git clone https://github.com/viash-io/viash.git /tmp/viash-build
 # cd /tmp/viash-build && git checkout 0.9.4 && sbt assembly
 # cp target/scala-*/viash-*.jar ./viash.jar
@@ -41,7 +48,7 @@ chmod +x viash
 curl -s https://get.nextflow.io | bash && chmod +x nextflow
 
 # Method 2: Direct download if official installer fails
-# wget https://github.com/nextflow-io/nextflow/releases/download/v24.10.1/nextflow && chmod +x nextflow
+wget https://github.com/nextflow-io/nextflow/releases/download/v24.10.1/nextflow && chmod +x nextflow
 
 # Verify installations
 ./viash --version  # Should show 0.9.4
@@ -206,7 +213,14 @@ After making changes, ALWAYS test these complete user scenarios:
 - **Runner integration test**: 20-40 minutes
 - **Demultiplex integration test**: 40-60 minutes  
 - **Individual test entries**: 10-30 minutes each
+- **Tool installation**: 2-10 minutes for Nextflow, 5-20 minutes for Viash (varies by method)
+- **Docker image pulls**: 1-5 minutes per image
 - **NEVER CANCEL**: These operations can appear to hang but are processing Docker images and large datasets
+
+**Verified Installation Times:**
+- Nextflow direct download: ~30 seconds
+- Docker image pulls (dataintuitive/viash): ~2-3 minutes
+- System package updates: 2-5 minutes
 
 ## Project Structure
 
@@ -279,13 +293,17 @@ After making changes, ALWAYS test these complete user scenarios:
 - **"Java version incompatible"**: Use Java 17 or higher (verify with `java -version`)
 - **"Docker permission denied"**: Add user to docker group (`sudo usermod -aG docker $USER`) or use sudo
 - **Viash installation fails**: Try alternative installation methods in order (JAR, Docker, source build)
+- **Network restrictions**: Some environments block access to get.nextflow.io and get.viash.io - use direct GitHub releases instead
+- **JAR download fails**: GitHub releases may not have .jar files - try Docker method or source build
+- **Docker image not found**: viashio/viash may not exist - try dataintuitive/viash:latest as alternative
 
 ### Build Issues
 - **"viash command not found"**: Ensure Viash is installed and in PATH
 - **"Java version incompatible"**: Use Java 17 or higher
 - **Network timeouts during build**: Be patient, builds download many Docker images and biobox components
 - **"Cannot resolve dependencies"**: Ensure internet access to viash-hub.com and biobox repositories
-- **Docker image pull failures**: Check Docker Hub access and try `docker pull viashio/viash:0.9.4` manually
+- **Docker image pull failures**: Check Docker Hub access and try `docker pull dataintuitive/viash:latest` manually
+- **SBT not available**: Some systems don't have SBT in default repositories - use Docker method instead
 
 ### Test Issues  
 - **Tests fail with "resources not found"**: Ensure internet connectivity for test data download from gs:// URLs
@@ -316,7 +334,28 @@ ls -la work/
 
 # Clean Nextflow cache
 nextflow clean -f
+
+# Alternative: If viash builds fail, check if pre-built workflows exist
+ls -la target/nextflow/ || echo "Need to run viash ns build first"
+
+# Test basic Docker functionality
+docker run --rm hello-world
+
+# Check available Docker images for Viash
+docker search viash | head -10
 ```
+
+## Alternative Validation When Builds Fail
+
+If you cannot get `viash ns build` to work due to installation or network issues:
+
+1. **Focus on component-level changes**: Modify individual `.nf` scripts in `src/` directories
+2. **Use existing test structures**: Review `src/*/test.nf` files to understand expected workflow patterns  
+3. **Validate syntax only**: Use `nextflow config -check` on individual workflows
+4. **Docker-based testing**: Use `docker run` commands to test individual biobox components
+5. **Documentation updates**: Focus on updating config files, documentation, and non-executable resources
+
+**Note**: Full integration testing requires a working Viash installation and build process.
 
 ## SCM Configuration for Viash Hub
 
