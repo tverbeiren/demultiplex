@@ -4,6 +4,34 @@ Demultiplex.vsh is a Viash-based workflow for demultiplexing raw RNA-seq sequenc
 
 Always reference these instructions first and fallback to search or bash commands only when you encounter unexpected information that does not match the info here.
 
+## Quick Start (For Experienced Users)
+
+```bash
+# Essential prerequisites check
+java -version  # Must be 17+
+docker --version  # Must be available
+
+# Install Nextflow (30 seconds)
+wget https://github.com/nextflow-io/nextflow/releases/download/v24.10.1/nextflow && chmod +x nextflow
+
+# Install Viash 0.9.4 (Method 1: Try JAR download first)
+wget -O viash.jar https://github.com/viash-io/viash/releases/download/0.9.4/viash-0.9.4.jar && \
+echo '#!/bin/bash\njava -jar "$(dirname "$0")/viash.jar" "$@"' > viash && chmod +x viash
+
+# If JAR fails, use Docker fallback:
+# cat > viash << 'EOF'
+# #!/bin/bash
+# docker run --rm -v "$(pwd):/work" -w /work dataintuitive/viash:latest viash "$@"
+# EOF
+# chmod +x viash
+
+# Build project (expect 15-45 minutes, some failures normal)
+./viash ns build --setup cb
+
+# Test working components (even if full build fails)
+ls target/nextflow/  # Check what built successfully
+```
+
 ## Working Effectively
 
 ### Prerequisites and Installation
@@ -214,6 +242,16 @@ After making changes, ALWAYS test these complete user scenarios:
      -c src/config/labels.config
    ```
 
+4. **Gather and Validate Test** (Works without external dependencies):
+   ```bash
+   # This tests FASTQ gathering and validation using local test data
+   nextflow run . \
+     -main-script src/dataflow/gather_fastqs_and_validate/test.nf \
+     -profile docker,no_publish,local \
+     -entry test_gather_and_validate \
+     -c src/config/labels.config
+   ```
+
 ### Expected Outputs
 - FASTQ files in the output directory
 - MultiQC report with quality metrics
@@ -326,6 +364,7 @@ After making changes, ALWAYS test these complete user scenarios:
 - **Docker image pull failures**: Check Docker Hub access and try `docker pull dataintuitive/viash:latest` manually
 - **SBT not available**: Some systems don't have SBT in default repositories - use Docker method instead
 - **"Could not checkout remote repository"**: biobox dependencies from viash-hub may be blocked - this is expected in restricted environments
+- **packages.viash-hub.com blocked**: Viash Hub access may be restricted - use local builds only
 - **Certificate errors in Docker builds**: Network restrictions may block container downloads - use `--disable-setup` if needed
 
 ### Test Issues  
