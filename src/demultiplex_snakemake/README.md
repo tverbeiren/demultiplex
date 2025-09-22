@@ -24,6 +24,7 @@ The workflow performs the following steps:
 
 ### Basic Usage
 
+#### Option 1: Using the run script (Recommended)
 ```bash
 # Run with default configuration
 ./run.sh --config config/config.yaml --cores 8
@@ -34,6 +35,20 @@ The workflow performs the following steps:
 # Test with reduced resources
 ./run.sh --config config/test_config.yaml --cores 4
 ```
+
+#### Option 2: Running Snakemake directly
+```bash
+# Run with default configuration (note: use --configfile, not --config)
+snakemake --configfile config/config.yaml --cores 8
+
+# Dry run to check workflow  
+snakemake --configfile config/config.yaml --cores 8 --dryrun
+
+# Test with reduced resources
+snakemake --configfile config/test_config.yaml --cores 4
+```
+
+> **⚠️ Important**: When running Snakemake directly, use `--configfile` to specify the config file, **not** `--config`. The `--config` option is for setting individual config values as key=value pairs.
 
 ### Configuration
 
@@ -152,10 +167,11 @@ The workflow generates the following outputs in the `publish_dir`:
 
 ### Common Issues
 
-1. **Missing input files**: Ensure input path exists and is accessible
-2. **Container not found**: Check container availability or disable container usage
-3. **Resource limits**: Adjust resource settings in configuration
-4. **Permission errors**: Ensure write permissions for output directories
+1. **Wrong config option**: If you get "Invalid config definition: Config entries have to be defined as name=value pairs", you're using `--config` instead of `--configfile`. Use `--configfile config/config.yaml` to specify the config file.
+2. **Missing input files**: Ensure input path exists and is accessible
+3. **Container not found**: Check container availability or disable container usage
+4. **Resource limits**: Adjust resource settings in configuration
+5. **Permission errors**: Ensure write permissions for output directories
 
 ### Debug Mode
 ```bash

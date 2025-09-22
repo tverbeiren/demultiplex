@@ -79,7 +79,11 @@ cd src/demultiplex_snakemake
 # sample_id: "my_run"
 # publish_dir: "output"
 
+# Option 1: Using the run script (recommended)
 ./run.sh --config config/config.yaml --cores 8
+
+# Option 2: Direct Snakemake command (note: use --configfile, not --config)
+snakemake --configfile config/config.yaml --cores 8
 ```
 
 ## Container Strategy

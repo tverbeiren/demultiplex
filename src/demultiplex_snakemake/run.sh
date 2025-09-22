@@ -63,7 +63,7 @@ if [[ -n "$PROFILE" ]]; then
 fi
 
 # Add other useful options
-SNAKEMAKE_CMD="$SNAKEMAKE_CMD --printshellcmds --reason"
+SNAKEMAKE_CMD="$SNAKEMAKE_CMD --printshellcmds"
 
 echo "Running Snakemake with command:"
 echo "$SNAKEMAKE_CMD"
