@@ -26,7 +26,7 @@ The workflow performs the following steps:
 
 #### Option 1: Using the run script (Recommended)
 ```bash
-# Run with default configuration (uses containers automatically)
+# Run with default configuration (uses Docker images via Singularity automatically)
 ./run.sh --config config/config.yaml --cores 8
 
 # Dry run to check workflow
@@ -34,6 +34,9 @@ The workflow performs the following steps:
 
 # Test with reduced resources
 ./run.sh --config config/test_config.yaml --cores 4
+
+# Force Singularity backend (if you have native Singularity images)
+./run.sh --config config/config.yaml --cores 8 --use-singularity
 
 # Disable containers (not recommended - tools may not be available)
 ./run.sh --config config/config.yaml --cores 8 --no-containers
@@ -53,7 +56,7 @@ snakemake --configfile config/config.yaml --cores 8
 
 > **⚠️ Important**: When running Snakemake directly, use `--configfile` to specify the config file, **not** `--config`. The `--config` option is for setting individual config values as key=value pairs.
 
-> **🐳 Container Support**: The workflow uses Docker/Singularity containers for reproducibility. Use `--use-singularity` flag or the run script which enables containers by default.
+> **🐳 Container Support**: The workflow uses Docker images through Singularity/Apptainer. You need Singularity or Apptainer installed even if you have Docker.
 
 ### Configuration
 
@@ -143,7 +146,7 @@ The workflow uses the following containers:
 - `debian:stable-slim` - For file extraction
 - `python:3.11-slim` - For Python scripts and default operations
 
-**Container Support Required**: This workflow requires Docker or Singularity to be installed and available. The containers are automatically pulled when needed.
+**Container Support Required**: This workflow requires Singularity or Apptainer to be installed and available. Even if you use Docker images, Snakemake requires Singularity/Apptainer as the container runtime. The containers are automatically pulled when needed.
 - `ubuntu:22.04` - Default container for scripts
 
 ## Resource Configuration
@@ -179,16 +182,46 @@ snakemake --configfile config/config.yaml --profile slurm --jobs 100
 ```
 
 ### Container Execution
-The workflow requires containers for reproducible execution. Enable container support:
+The workflow requires containers for reproducible execution. Snakemake uses Singularity/Apptainer as the container runtime, which can run Docker images:
+
 ```bash
-# Using Docker (recommended)
+# Using Docker images via Singularity/Apptainer (recommended)
+./run.sh --config config/config.yaml --cores 8
+
+# Direct Snakemake with containers
 snakemake --configfile config/config.yaml --cores 8 --use-singularity
 
-# Using Conda environments (alternative)
-snakemake --configfile config/config.yaml --cores 8 --use-conda
-
 # Disable containers (not recommended - tools may not be available)
-snakemake --configfile config/config.yaml --cores 8
+./run.sh --config config/config.yaml --cores 8 --no-containers
+```
+
+#### Container Runtime Requirements
+Snakemake requires **Singularity or Apptainer** to run containers, even when using Docker images:
+
+- **If you have Docker**: Install Singularity or Apptainer to run Docker images
+- **If you have Singularity/Apptainer**: Use directly with `--use-singularity` 
+
+#### Installation Options
+
+**Singularity Installation:**
+```bash
+# Ubuntu/Debian
+sudo apt update && sudo apt install singularity-container
+
+# macOS (requires admin privileges)
+brew install singularity
+
+# Or install via conda
+conda install -c conda-forge singularity
+```
+
+**Apptainer Installation:**
+```bash
+# Ubuntu/Debian  
+sudo apt update && sudo apt install apptainer
+
+# Or install via conda
+conda install -c conda-forge apptainer
 ```
 
 ### Scheduler Options
@@ -220,7 +253,7 @@ The workflow generates the following outputs in the `publish_dir`:
 3. **Double slash warnings**: If you see warnings about double slashes in file paths, remove trailing slashes from directory paths in your config (e.g., use `"output"` instead of `"output/"`).
 4. **Ambiguous rules error**: If you get "AmbiguousRuleException" about `bcl_convert` and `bases2fastq`, this should be resolved by the `ruleorder` directive. The workflow automatically uses the appropriate demultiplexer based on auto-detection.
 5. **ILP solver warnings**: If you see "Failed to solve scheduling problem with ILP solver, falling back to greedy scheduler", this is non-critical. Snakemake will use the greedy scheduler instead. To fix: install CBC solver with `conda install coincbc` or ignore the warning as it doesn't affect workflow execution.
-6. **Container/tool not found**: The workflow requires Docker/Singularity containers for reproducibility. Ensure containers are enabled with `--use-singularity` flag or use the run script which enables them by default.
+6. **Container/tool not found**: The workflow requires Singularity or Apptainer to run containers, even for Docker images. Install with `sudo apt install singularity-container` (Ubuntu) or `conda install singularity` (conda). If you only have Docker, you still need Singularity/Apptainer as Snakemake's container runtime.
 7. **Missing input files**: Ensure input path exists and is accessible
 8. **Resource limits**: Adjust resource settings in configuration
 9. **Permission errors**: Ensure write permissions for output directories

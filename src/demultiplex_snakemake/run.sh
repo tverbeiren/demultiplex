@@ -11,6 +11,7 @@ DRYRUN=false
 PROFILE=""
 SCHEDULER=""
 USE_CONTAINERS=true
+CONTAINER_BACKEND="docker"
 EXTRA_ARGS=""
 
 # Parse command line arguments
@@ -40,6 +41,14 @@ while [[ $# -gt 0 ]]; do
             USE_CONTAINERS=false
             shift
             ;;
+        --use-docker)
+            CONTAINER_BACKEND="docker"
+            shift
+            ;;
+        --use-singularity)
+            CONTAINER_BACKEND="singularity"
+            shift
+            ;;
         --help)
             echo "Usage: $0 [OPTIONS] [-- EXTRA_SNAKEMAKE_OPTIONS]"
             echo ""
@@ -48,13 +57,16 @@ while [[ $# -gt 0 ]]; do
             echo "  --cores N          Number of cores to use (default: 8)"
             echo "  --dryrun           Perform a dry run"
             echo "  --profile NAME     Snakemake profile to use"
-            echo "  --scheduler NAME   Scheduler to use (greedy, ilp)"
-            echo "  --no-containers    Disable container usage (not recommended)"
-            echo "  --help             Show this help message"
+            echo "  --scheduler NAME     Scheduler to use (greedy, ilp)"
+            echo "  --no-containers      Disable container usage (not recommended)"
+            echo "  --use-docker         Use Docker for containers (default)"
+            echo "  --use-singularity    Use Singularity/Apptainer for containers"
+            echo "  --help               Show this help message"
             echo ""
             echo "Examples:"
             echo "  $0 --config config/test_config.yaml --cores 4 --dryrun"
-            echo "  $0 --config config/config.yaml --scheduler greedy"
+            echo "  $0 --config config/config.yaml --use-docker"
+            echo "  $0 --config config/config.yaml --use-singularity --scheduler greedy"
             echo "  $0 --config config/config.yaml -- --verbose --keep-going"
             exit 0
             ;;
@@ -91,7 +103,36 @@ SNAKEMAKE_CMD="$SNAKEMAKE_CMD --printshellcmds"
 
 # Enable containers by default
 if [[ "$USE_CONTAINERS" == true ]]; then
-    SNAKEMAKE_CMD="$SNAKEMAKE_CMD --use-singularity"
+    # Auto-detect available container runtime
+    if [[ "$CONTAINER_BACKEND" == "docker" ]]; then
+        if command -v docker &> /dev/null; then
+            # Check if we can use Singularity with Docker backend
+            if command -v singularity &> /dev/null || command -v apptainer &> /dev/null; then
+                echo "Using Singularity/Apptainer with Docker images"
+                SNAKEMAKE_CMD="$SNAKEMAKE_CMD --use-singularity"
+            else
+                echo "Warning: Neither Singularity nor Apptainer found."
+                echo "Snakemake requires Singularity/Apptainer to run Docker containers."
+                echo "Please install one of the following:"
+                echo "  - Singularity: https://docs.sylabs.io/guides/latest/user-guide/"
+                echo "  - Apptainer: https://apptainer.org/docs/user/latest/"
+                echo "Or run with --no-containers (not recommended)"
+                exit 1
+            fi
+        else
+            echo "Docker not found. Please install Docker or use --use-singularity"
+            exit 1
+        fi
+    elif [[ "$CONTAINER_BACKEND" == "singularity" ]]; then
+        if command -v singularity &> /dev/null || command -v apptainer &> /dev/null; then
+            echo "Using Singularity/Apptainer directly"
+            SNAKEMAKE_CMD="$SNAKEMAKE_CMD --use-singularity"
+        else
+            echo "Error: Neither Singularity nor Apptainer found."
+            echo "Please install Singularity or Apptainer, or use --use-docker"
+            exit 1
+        fi
+    fi
 fi
 
 # Add any extra arguments
