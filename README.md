@@ -27,15 +27,34 @@ supplemented by custom base components and workflow components in this
 package. Each of these components can be used independently as
 stand-alone modules with a standardized interface.
 
-The full workflow can be run in two ways:
+The full workflow can be run in three ways:
 
-1.  Run the [main
+1.  **Nextflow/Viash**: Run the [main
     workflow](https://www.viash-hub.com/packages/demultiplex/v0.3.4/components/demultiplex)
     containing the main functionality.
-2.  Run the [(opinianated)
+2.  **Nextflow/Viash (Simplified)**: Run the [(opinianated)
     `runner`](https://www.viash-hub.com/packages/demultiplex/v0.3.4/components/runner)
     where a number of choices (input/output structure and location) have
     been made.
+3.  **Argo Workflows**: Run the Kubernetes-native [Argo Workflows version](src/argo-workflows/)
+    for cloud-native deployments and enterprise Kubernetes environments.
+
+## Workflow Implementations
+
+### Nextflow/Viash (Primary)
+The main implementation uses Nextflow for workflow orchestration and Viash for component management. This provides:
+- Cross-platform execution (local, HPC, cloud)
+- Mature ecosystem and tooling
+- Extensive configurability and customization
+
+### Argo Workflows (Kubernetes-native)
+The Argo Workflows implementation provides:
+- Native Kubernetes integration
+- Cloud-native scaling and resource management
+- Enterprise-grade monitoring and observability
+- Simplified deployment in containerized environments
+
+Both implementations produce identical outputs and support the same input formats and demultiplexers.
 
 ## Workflow Overview
 

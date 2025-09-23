@@ -631,11 +631,11 @@ spec:
         mkdir -p "$(dirname $OUTPUT_REPORT)"
         
         # Create temporary config for FastQC data parsing
-        cat > /tmp/multiqc_config.yaml << EOF
-sp:
-  fastqc/data:
-    fn: '*_fastqc_data.txt'
-EOF
+        cat > /tmp/multiqc_config.yaml << 'EOF'
+        sp:
+          fastqc/data:
+            fn: '*_fastqc_data.txt'
+        EOF
         
         # Run MultiQC
         multiqc $MULTIQC_INPUTS \
