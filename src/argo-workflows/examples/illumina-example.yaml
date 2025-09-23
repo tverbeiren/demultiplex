@@ -1,0 +1,23 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Workflow
+metadata:
+  generateName: demultiplex-example-
+  namespace: argo
+spec:
+  entrypoint: demultiplex-main
+  
+  # Example parameters for Illumina data
+  arguments:
+    parameters:
+    - name: id
+      value: "test-run"
+    - name: input
+      value: "gs://viash-hub-resources/demultiplex/v3/demultiplex_htrnaseq_meta/SingleCell-RNA_P3_2"
+    - name: demultiplexer
+      value: "bclconvert"
+    - name: skip_copycomplete_check
+      value: "true"
+  
+  # Include the main workflow template
+  workflowTemplateRef:
+    name: demultiplex-workflow-template

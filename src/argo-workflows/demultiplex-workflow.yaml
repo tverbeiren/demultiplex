@@ -1,0 +1,550 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Workflow
+metadata:
+  name: demultiplex-workflow
+  namespace: argo
+spec:
+  entrypoint: demultiplex-main
+  
+  # Global workflow parameters
+  arguments:
+    parameters:
+    - name: id
+      value: "run"
+    - name: input
+      value: ""
+    - name: run_information
+      value: ""
+    - name: demultiplexer
+      value: ""
+    - name: output
+      value: "{{workflow.parameters.id}}/fastq"
+    - name: output_sample_qc
+      value: "{{workflow.parameters.id}}/qc/fastqc"
+    - name: multiqc_output
+      value: "{{workflow.parameters.id}}/qc/multiqc_report.html"
+    - name: output_run_information
+      value: "{{workflow.parameters.id}}/run_information.csv"
+    - name: demultiplexer_logs
+      value: "{{workflow.parameters.id}}/demultiplexer_logs"
+    - name: skip_copycomplete_check
+      value: "false"
+  
+  # Shared volumes for data exchange between steps
+  volumes:
+  - name: workspace
+    emptyDir: {}
+  
+  templates:
+  #
+  # Main workflow entrypoint
+  #
+  - name: demultiplex-main
+    steps:
+    # Step 1: Conditionally untar input if it's a compressed archive
+    - - name: untar-input
+        template: untar
+        arguments:
+          parameters:
+          - name: input
+            value: "{{workflow.parameters.input}}"
+          - name: output
+            value: "/workspace/untarred"
+        when: "{{workflow.parameters.input}} =~ '.*\\.(tar\\.gz|tar|tgz)$'"
+    
+    # Step 2: Detect demultiplexer and run information
+    - - name: detect-demultiplexer
+        template: detect-demultiplexer
+        arguments:
+          parameters:
+          - name: input
+            value: "{{= steps['untar-input'].outputs.result != null ? '/workspace/untarred' : workflow.parameters.input }}"
+          - name: run_information
+            value: "{{workflow.parameters.run_information}}"
+          - name: demultiplexer
+            value: "{{workflow.parameters.demultiplexer}}"
+          - name: skip_copycomplete_check
+            value: "{{workflow.parameters.skip_copycomplete_check}}"
+    
+    # Step 3: Convert Illumina InterOp to CSV (only for bclconvert)
+    - - name: interop-summary-csv
+        template: interop-summary-to-csv
+        arguments:
+          parameters:
+          - name: input
+            value: "{{= steps['untar-input'].outputs.result != null ? '/workspace/untarred' : workflow.parameters.input }}"
+        when: "{{steps.detect-demultiplexer.outputs.parameters.demultiplexer}} == 'bclconvert'"
+    
+    # Step 4a: Run BCL Convert (Illumina)
+    - - name: bcl-convert
+        template: bcl-convert
+        arguments:
+          parameters:
+          - name: bcl_input_directory
+            value: "{{= steps['untar-input'].outputs.result != null ? '/workspace/untarred' : workflow.parameters.input }}"
+          - name: sample_sheet
+            value: "{{steps.detect-demultiplexer.outputs.parameters.run_information}}"
+          - name: output_directory
+            value: "{{workflow.parameters.output}}"
+          - name: reports
+            value: "{{workflow.parameters.demultiplexer_logs}}"
+          - name: logs
+            value: "{{workflow.parameters.demultiplexer_logs}}"
+        when: "{{steps.detect-demultiplexer.outputs.parameters.demultiplexer}} == 'bclconvert'"
+      
+      # Step 4b: Run bases2fastq (Element Biosciences)
+      - name: bases2fastq
+        template: bases2fastq
+        arguments:
+          parameters:
+          - name: analysis_directory
+            value: "{{= steps['untar-input'].outputs.result != null ? '/workspace/untarred' : workflow.parameters.input }}"
+          - name: run_manifest
+            value: "{{steps.detect-demultiplexer.outputs.parameters.run_information}}"
+          - name: output_directory
+            value: "{{workflow.parameters.output}}"
+          - name: report
+            value: "{{workflow.parameters.demultiplexer_logs}}/report.html"
+          - name: logs
+            value: "{{workflow.parameters.demultiplexer_logs}}"
+        when: "{{steps.detect-demultiplexer.outputs.parameters.demultiplexer}} == 'bases2fastq'"
+    
+    # Step 5: Gather and validate FASTQ files
+    - - name: gather-fastqs-validate
+        template: gather-fastqs-and-validate
+        arguments:
+          parameters:
+          - name: input
+            value: "{{workflow.parameters.output}}"
+          - name: sample_sheet
+            value: "{{steps.detect-demultiplexer.outputs.parameters.run_information}}"
+    
+    # Step 6: Run FastQC quality control
+    - - name: fastqc
+        template: fastqc
+        arguments:
+          parameters:
+          - name: input_forward
+            value: "{{steps.gather-fastqs-validate.outputs.parameters.fastq_forward}}"
+          - name: input_reverse
+            value: "{{steps.gather-fastqs-validate.outputs.parameters.fastq_reverse}}"
+          - name: output_dir
+            value: "{{workflow.parameters.output_sample_qc}}"
+    
+    # Step 7: Combine samples
+    - - name: combine-samples
+        template: combine-samples
+        arguments:
+          parameters:
+          - name: id
+            value: "{{workflow.parameters.id}}"
+          - name: forward_input
+            value: "{{steps.gather-fastqs-validate.outputs.parameters.fastq_forward}}"
+          - name: reverse_input
+            value: "{{steps.gather-fastqs-validate.outputs.parameters.fastq_reverse}}"
+          - name: sample_qc_dir
+            value: "{{workflow.parameters.output_sample_qc}}"
+    
+    # Step 8: Generate MultiQC report
+    - - name: multiqc
+        template: multiqc
+        arguments:
+          parameters:
+          - name: input_sample_qc
+            value: "{{steps.combine-samples.outputs.parameters.output_sample_qc}}"
+          - name: input_interop_run
+            value: "{{= steps.interop-summary-csv.outputs.result != null ? steps.interop-summary-csv.outputs.parameters.output_run_summary : '' }}"
+          - name: input_interop_index
+            value: "{{= steps.interop-summary-csv.outputs.result != null ? steps.interop-summary-csv.outputs.parameters.output_index_summary : '' }}"
+          - name: output_report
+            value: "{{workflow.parameters.multiqc_output}}"
+          - name: demultiplexer
+            value: "{{steps.detect-demultiplexer.outputs.parameters.demultiplexer}}"
+
+  #
+  # Workflow step templates
+  #
+  
+  # Untar compressed input files
+  - name: untar
+    inputs:
+      parameters:
+      - name: input
+      - name: output
+    container:
+      image: debian:stable-slim
+      command: [sh, -c]
+      args: ["mkdir -p {{inputs.parameters.output}} && tar -xzf {{inputs.parameters.input}} -C {{inputs.parameters.output}} --strip-components=1"]
+      resources:
+        requests:
+          memory: "4Gi"
+          cpu: "2"
+        limits:
+          memory: "8Gi"
+          cpu: "8"
+      volumeMounts:
+      - name: workspace
+        mountPath: /workspace
+    outputs:
+      parameters:
+      - name: result
+        value: "{{inputs.parameters.output}}"
+
+  # Detect demultiplexer and sample sheet
+  - name: detect-demultiplexer
+    inputs:
+      parameters:
+      - name: input
+      - name: run_information
+      - name: demultiplexer
+      - name: skip_copycomplete_check
+    container:
+      image: nextflow/bash:latest
+      command: [sh, -c]
+      args: |
+        - |
+          set -euo pipefail
+          
+          # Auto-detection logic for demultiplexer and sample sheet
+          INPUT_DIR="{{inputs.parameters.input}}"
+          RUN_INFO="{{inputs.parameters.run_information}}"
+          DEMUX="{{inputs.parameters.demultiplexer}}"
+          SKIP_CHECK="{{inputs.parameters.skip_copycomplete_check}}"
+          
+          # Check for CopyComplete.txt for Illumina data
+          if [ "$SKIP_CHECK" != "true" ] && [ -d "$INPUT_DIR" ]; then
+            if [ ! -f "$INPUT_DIR/CopyComplete.txt" ] && [ -f "$INPUT_DIR/RunInfo.xml" ]; then
+              echo "Error: CopyComplete.txt file was not found!" >&2
+              exit 1
+            fi
+          fi
+          
+          # Auto-detect run information file if not provided
+          if [ -z "$RUN_INFO" ] && [ -d "$INPUT_DIR" ]; then
+            # Look for SampleSheet.csv (Illumina)
+            if [ -f "$INPUT_DIR/SampleSheet.csv" ]; then
+              RUN_INFO="$INPUT_DIR/SampleSheet.csv"
+              if [ -z "$DEMUX" ]; then
+                DEMUX="bclconvert"
+              fi
+            # Look for RunManifest.csv (Element Biosciences)
+            elif [ -f "$INPUT_DIR/RunManifest.csv" ]; then
+              RUN_INFO="$INPUT_DIR/RunManifest.csv"
+              if [ -z "$DEMUX" ]; then
+                DEMUX="bases2fastq"
+              fi
+            else
+              echo "Error: No run information file (SampleSheet.csv, RunManifest.csv) found!" >&2
+              exit 1
+            fi
+          fi
+          
+          # Validate that we have both demultiplexer and run information
+          if [ -z "$RUN_INFO" ]; then
+            echo "Error: No run information file found" >&2
+            exit 1
+          fi
+          
+          if [ -z "$DEMUX" ]; then
+            echo "Error: No demultiplexer specified or detected" >&2
+            exit 1
+          fi
+          
+          # Output results
+          echo "$DEMUX" > /tmp/demultiplexer_output
+          echo "$RUN_INFO" > /tmp/run_information_output
+      resources:
+        requests:
+          memory: "2Gi"
+          cpu: "1"
+        limits:
+          memory: "4Gi"
+          cpu: "2"
+      volumeMounts:
+      - name: workspace
+        mountPath: /workspace
+    outputs:
+      parameters:
+      - name: demultiplexer
+        valueFrom:
+          path: /tmp/demultiplexer_output
+      - name: run_information
+        valueFrom:
+          path: /tmp/run_information_output
+
+  # Convert Illumina InterOp data to CSV
+  - name: interop-summary-to-csv
+    inputs:
+      parameters:
+      - name: input
+    container:
+      image: biocontainers/interop:v1.1.8dfsg-1-deb_cv1
+      command: [sh, -c]
+      args: |
+        - |
+          set -euo pipefail
+          INPUT_DIR="{{inputs.parameters.input}}"
+          
+          # Create InterOp summary files
+          summary_executable summary --csv=1 "$INPUT_DIR" > /workspace/run_summary.csv
+          index_summary_executable --csv=1 "$INPUT_DIR" > /workspace/index_summary.csv
+          
+          echo "/workspace/run_summary.csv" > /tmp/output_run_summary
+          echo "/workspace/index_summary.csv" > /tmp/output_index_summary
+      resources:
+        requests:
+          memory: "2Gi"
+          cpu: "1"
+        limits:
+          memory: "4Gi"
+          cpu: "2"
+      volumeMounts:
+      - name: workspace
+        mountPath: /workspace
+    outputs:
+      parameters:
+      - name: output_run_summary
+        valueFrom:
+          path: /tmp/output_run_summary
+      - name: output_index_summary
+        valueFrom:
+          path: /tmp/output_index_summary
+
+  # BCL Convert (Illumina demultiplexing)
+  - name: bcl-convert
+    inputs:
+      parameters:
+      - name: bcl_input_directory
+      - name: sample_sheet
+      - name: output_directory
+      - name: reports
+      - name: logs
+    container:
+      image: nfcore/bclconvert:3.9.3
+      command: [bcl-convert]
+      args: |
+        - --bcl-input-directory={{inputs.parameters.bcl_input_directory}}
+        - --sample-sheet={{inputs.parameters.sample_sheet}}
+        - --output-directory={{inputs.parameters.output_directory}}
+        - --reports-directory={{inputs.parameters.reports}}
+        - --logs-directory={{inputs.parameters.logs}}
+        - --force
+      resources:
+        requests:
+          memory: "16Gi"
+          cpu: "8"
+        limits:
+          memory: "64Gi"
+          cpu: "16"
+      volumeMounts:
+      - name: workspace
+        mountPath: /workspace
+
+  # bases2fastq (Element Biosciences demultiplexing)
+  - name: bases2fastq
+    inputs:
+      parameters:
+      - name: analysis_directory
+      - name: run_manifest
+      - name: output_directory
+      - name: report
+      - name: logs
+    container:
+      image: elementbiosciences/bases2fastq:0.1.2
+      command: [bases2fastq]
+      args: |
+        - --analysis-directory={{inputs.parameters.analysis_directory}}
+        - --run-manifest={{inputs.parameters.run_manifest}}
+        - --output-directory={{inputs.parameters.output_directory}}
+        - --report={{inputs.parameters.report}}
+        - --logs={{inputs.parameters.logs}}
+        - --no-projects=true
+        - --legacy-fastq=true
+        - --group-fastq=true
+        - --skip-multi-qc=true
+      resources:
+        requests:
+          memory: "16Gi"
+          cpu: "8"
+        limits:
+          memory: "64Gi"
+          cpu: "16"
+      volumeMounts:
+      - name: workspace
+        mountPath: /workspace
+
+  # Gather and validate FASTQ files
+  - name: gather-fastqs-and-validate
+    inputs:
+      parameters:
+      - name: input
+      - name: sample_sheet
+    container:
+      image: nextflow/bash:latest
+      command: [sh, -c]
+      args: |
+        - |
+          set -euo pipefail
+          
+          INPUT_DIR="{{inputs.parameters.input}}"
+          SAMPLE_SHEET="{{inputs.parameters.sample_sheet}}"
+          
+          # Gather FASTQ files and validate against sample sheet
+          # This is a simplified version - the actual implementation would be more complex
+          find "$INPUT_DIR" -name "*R1*.fastq.gz" | sort > /tmp/fastq_forward
+          find "$INPUT_DIR" -name "*R2*.fastq.gz" | sort > /tmp/fastq_reverse
+          
+          # Basic validation that files exist
+          if [ ! -s /tmp/fastq_forward ]; then
+            echo "Warning: No forward FASTQ files found"
+          fi
+      resources:
+        requests:
+          memory: "4Gi"
+          cpu: "2"
+        limits:
+          memory: "8Gi"
+          cpu: "4"
+      volumeMounts:
+      - name: workspace
+        mountPath: /workspace
+    outputs:
+      parameters:
+      - name: fastq_forward
+        valueFrom:
+          path: /tmp/fastq_forward
+      - name: fastq_reverse
+        valueFrom:
+          path: /tmp/fastq_reverse
+
+  # FastQC quality control
+  - name: fastqc
+    inputs:
+      parameters:
+      - name: input_forward
+      - name: input_reverse
+      - name: output_dir
+    container:
+      image: biocontainers/fastqc:v0.11.9_cv8
+      command: [sh, -c]
+      args: |
+        - |
+          set -euo pipefail
+          
+          OUTPUT_DIR="{{inputs.parameters.output_dir}}"
+          mkdir -p "$OUTPUT_DIR"
+          
+          # Run FastQC on forward reads
+          if [ -f "{{inputs.parameters.input_forward}}" ]; then
+            fastqc "{{inputs.parameters.input_forward}}" -o "$OUTPUT_DIR"
+          fi
+          
+          # Run FastQC on reverse reads  
+          if [ -f "{{inputs.parameters.input_reverse}}" ]; then
+            fastqc "{{inputs.parameters.input_reverse}}" -o "$OUTPUT_DIR"
+          fi
+      resources:
+        requests:
+          memory: "4Gi"
+          cpu: "2"
+        limits:
+          memory: "8Gi"
+          cpu: "2"
+      volumeMounts:
+      - name: workspace
+        mountPath: /workspace
+
+  # Combine samples
+  - name: combine-samples
+    inputs:
+      parameters:
+      - name: id
+      - name: forward_input
+      - name: reverse_input
+      - name: sample_qc_dir
+    container:
+      image: nextflow/bash:latest
+      command: [sh, -c]
+      args: |
+        - |
+          set -euo pipefail
+          
+          # Combine sample data for MultiQC processing
+          # This is a simplified implementation
+          OUTPUT_DIR="/workspace/combined_samples"
+          mkdir -p "$OUTPUT_DIR"
+          
+          # Copy QC data
+          if [ -d "{{inputs.parameters.sample_qc_dir}}" ]; then
+            cp -r "{{inputs.parameters.sample_qc_dir}}"/* "$OUTPUT_DIR/" || true
+          fi
+          
+          echo "$OUTPUT_DIR" > /tmp/output_sample_qc
+      resources:
+        requests:
+          memory: "4Gi"
+          cpu: "2"
+        limits:
+          memory: "8Gi"
+          cpu: "4"
+      volumeMounts:
+      - name: workspace
+        mountPath: /workspace
+    outputs:
+      parameters:
+      - name: output_sample_qc
+        valueFrom:
+          path: /tmp/output_sample_qc
+
+  # MultiQC report generation
+  - name: multiqc
+    inputs:
+      parameters:
+      - name: input_sample_qc
+      - name: input_interop_run
+      - name: input_interop_index
+      - name: output_report
+      - name: demultiplexer
+    container:
+      image: multiqc/multiqc:v1.11
+      command: [sh, -c]
+      args: |
+        - |
+          set -euo pipefail
+          
+          INPUT_QC="{{inputs.parameters.input_sample_qc}}"
+          OUTPUT_REPORT="{{inputs.parameters.output_report}}"
+          DEMUX="{{inputs.parameters.demultiplexer}}"
+          
+          # Prepare MultiQC input directories
+          MULTIQC_INPUTS="$INPUT_QC"
+          
+          # Add InterOp data for Illumina runs
+          if [ "$DEMUX" = "bclconvert" ]; then
+            INTEROP_RUN="{{inputs.parameters.input_interop_run}}"
+            INTEROP_INDEX="{{inputs.parameters.input_interop_index}}"
+            if [ -n "$INTEROP_RUN" ] && [ -f "$INTEROP_RUN" ]; then
+              MULTIQC_INPUTS="$MULTIQC_INPUTS $(dirname $INTEROP_RUN)"
+            fi
+            if [ -n "$INTEROP_INDEX" ] && [ -f "$INTEROP_INDEX" ]; then
+              MULTIQC_INPUTS="$MULTIQC_INPUTS $(dirname $INTEROP_INDEX)"
+            fi
+          fi
+          
+          # Create output directory
+          mkdir -p "$(dirname $OUTPUT_REPORT)"
+          
+          # Run MultiQC
+          multiqc $MULTIQC_INPUTS \
+            --filename "$OUTPUT_REPORT" \
+            --config <(echo "sp: {fastqc/data: {fn: '*_fastqc_data.txt'}}")
+      resources:
+        requests:
+          memory: "8Gi"
+          cpu: "4"
+        limits:
+          memory: "16Gi"
+          cpu: "8"
+      volumeMounts:
+      - name: workspace
+        mountPath: /workspace
