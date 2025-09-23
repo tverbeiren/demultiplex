@@ -1,0 +1,21 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Workflow
+metadata:
+  generateName: demultiplex-element-
+  namespace: argo
+spec:
+  entrypoint: demultiplex-main
+  
+  # Example parameters for Element Biosciences data
+  arguments:
+    parameters:
+    - name: id
+      value: "element-run"
+    - name: input
+      value: "http://element-public-data.s3.amazonaws.com/bases2fastq-share/bases2fastq-v2/20230404-bases2fastq-sim-151-151-9-9.tar.gz"
+    - name: demultiplexer
+      value: "bases2fastq"
+  
+  # Include the main workflow template
+  workflowTemplateRef:
+    name: demultiplex-workflow-template
